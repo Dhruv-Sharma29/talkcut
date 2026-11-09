@@ -4,6 +4,7 @@ All cut decisions live here. The editor only sends the indices of deleted words,
 and export can never disagree about what gets removed.
 """
 
+import bisect
 import os
 import re
 import subprocess
@@ -12,6 +13,7 @@ import tempfile
 FILLERS = {"um", "umm", "uh", "uhh", "uhm", "erm", "er", "ah", "hmm", "mm", "mhm"}
 PAD = 0.05  # seconds of silence kept next to a surviving word, so cuts don't clip it
 FADE = 0.01  # fade at each joint; hides the click a hard cut makes
+FRAME = 0.01  # seconds per loudness frame used for snapping
 
 
 def find_fillers(words):
@@ -45,6 +47,76 @@ def plan_cuts(words, deleted, duration, pad=PAD):
     return cuts
 
 
+def frame_levels(samples, sr=16000):
+    """RMS loudness per FRAME of mono samples."""
+    import numpy as np
+
+    hop = int(sr * FRAME)
+    n = len(samples) // hop
+    return np.sqrt((samples[: n * hop].reshape(n, hop) ** 2).mean(axis=1))
+
+
+def snap_to_silence(cuts, levels, words=(), pad=PAD, min_pause=0.04, max_shift=0.3,
+                    tolerance=0.1):
+    """Move cut edges that land in sound to the nearest pause in the audio.
+
+    Whisper's word timestamps are often 100-250 ms off, so a cut planned from them can clip
+    the start or end of a word that should survive. An edge next to a kept word is moved
+    into the nearest run of at least `min_pause` quiet frames, `pad` seconds from the speech,
+    and never more than `max_shift` seconds from where it was planned.
+
+    Snapping must not undo the edit: with `words` given, an edge never moves so far that it
+    would keep more than `tolerance` seconds of a deleted word's timestamped span. When words
+    run together with no usable pause, the planned edge wins.
+    """
+    import numpy as np
+
+    n = len(levels)
+    if not n:
+        return cuts
+    mids = [(x["start"] + x["end"]) / 2 for x in words]
+    # ponytail: "quiet" is relative to the loud end of the file. Fine for clean podcast audio;
+    # noisy rooms need a noise-floor estimate instead (M3).
+    quiet = levels < 0.05 * np.percentile(levels, 95)
+    run, lim = round(min_pause / FRAME), round(max_shift / FRAME)
+
+    def is_pause(k):  # frames k .. k+run-1 are all quiet
+        return k >= 0 and k + run <= n and bool(quiet[k : k + run].all())
+
+    out = []
+    for a, b in cuts:
+        ka, kb = round(a / FRAME), round(b / FRAME)
+        inside = words[bisect.bisect_right(mids, a) : bisect.bisect_left(mids, b)]  # deleted
+        a_max = round((inside[0]["start"] + tolerance) / FRAME) if inside else kb
+        b_min = round((inside[-1]["end"] - tolerance) / FRAME) if inside else ka
+        if ka > 0 and not is_pause(ka):  # kept word still sounding at the cut start
+            for k in range(ka + 1, min(ka + lim, kb, a_max) + 1):
+                if is_pause(k):
+                    e = k
+                    while e < n and quiet[e]:
+                        e += 1
+                    a = min(k * FRAME + pad, e * FRAME)
+                    break
+        if kb < n and not is_pause(kb - run):  # next kept word already started
+            for k in range(kb - 1, max(kb - lim, ka, b_min) - 1, -1):
+                if is_pause(k - run):
+                    s = k - run
+                    while s > 0 and quiet[s - 1]:
+                        s -= 1
+                    b = max(k * FRAME - pad, s * FRAME)
+                    break
+        if b > a:
+            out.append((round(a, 3), round(b, 3)))
+    return out
+
+
+def final_cuts(project, levels=None):
+    """The cuts preview and export both use: planned from words, snapped to pauses."""
+    words = project["words"]
+    cuts = plan_cuts(words, project["deleted"], project["duration"])
+    return snap_to_silence(cuts, levels, words) if levels is not None else cuts
+
+
 def keep_ranges(cuts, duration):
     """The complement of `cuts` within [0, duration]."""
     keep, t = [], 0.0
@@ -55,6 +127,18 @@ def keep_ranges(cuts, duration):
     if t < duration:
         keep.append((t, duration))
     return keep
+
+
+def edited_path(media):
+    base, ext = os.path.splitext(media)
+    return f"{base}.edited{ext}"
+
+
+def export(project, media, dst, levels=None):
+    """Render a project's edits. Returns the length of the result in seconds."""
+    keep = keep_ranges(final_cuts(project, levels), project["duration"])
+    render(media, dst, keep)
+    return sum(b - a for a, b in keep)
 
 
 def probe_duration(path):

@@ -3,7 +3,11 @@ import subprocess
 
 import pytest
 
-from talkcut.edit import find_fillers, keep_ranges, plan_cuts, probe_duration, render
+import numpy as np
+
+from talkcut.edit import (
+    find_fillers, keep_ranges, plan_cuts, probe_duration, render, snap_to_silence,
+)
 
 
 def w(text, start, end):
@@ -45,6 +49,40 @@ def test_keep_ranges_is_the_complement():
 def test_fillers_ignore_case_and_punctuation_but_not_real_words():
     words = [w("Um,", 0, 1), w("UH.", 1, 2), w("umbrella", 2, 3), w("hmm...", 3, 4)]
     assert find_fillers(words) == [0, 1, 3]
+
+
+def levels(*spans):
+    """10 ms loudness frames from (seconds, loud?) spans."""
+    return np.concatenate([np.full(round(s / 0.01), 1.0 if loud else 0.0) for s, loud in spans])
+
+
+# kept word 0-0.5 s, pause, deleted word 0.8-1.2 s, pause, kept word 1.5-2.0 s
+SPEECH = levels((0.5, 1), (0.3, 0), (0.4, 1), (0.3, 0), (0.5, 1))
+
+
+def test_edges_that_land_in_speech_move_to_the_nearest_pause():
+    # Timestamps said the first word ended at 0.45 and the last began at 1.6: both too early/late.
+    assert snap_to_silence([(0.45, 1.6)], SPEECH) == [(0.55, 1.45)]
+
+
+def test_edges_already_in_a_pause_stay_put():
+    assert snap_to_silence([(0.6, 1.3)], SPEECH) == [(0.6, 1.3)]
+
+
+def test_snapping_never_moves_an_edge_further_than_max_shift():
+    long_word = levels((1.0, 1), (0.5, 0), (0.5, 1))
+    assert snap_to_silence([(0.2, 1.2)], long_word) == [(0.2, 1.2)]
+
+
+def test_snapping_never_brings_back_a_deleted_word():
+    # "think . the first one" with only 50 ms gaps around "first"; "the first" is deleted.
+    # The planned end (1.2, in the gap before "one") is right; snapping back to the gap
+    # between "the" and "first" would quietly un-delete "first".
+    audio = levels((0.5, 1), (0.3, 0), (0.1, 1), (0.05, 0), (0.25, 1), (0.05, 0), (0.35, 1))
+    words = [w("think", 0.0, 0.5), w("the", 0.8, 0.88), w("first", 0.88, 1.2), w("one", 1.2, 1.5)]
+    cuts = plan_cuts(words, [1, 2], 1.6)
+    assert cuts == [(0.55, 1.2)]
+    assert snap_to_silence(cuts, audio, words) == [(0.55, 1.2)]
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")

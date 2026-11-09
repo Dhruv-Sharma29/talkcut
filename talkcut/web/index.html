@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>talkcut</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --fg: #1d1c1a; --muted: #75716b; --line: #e6e2dc;
+    --accent: #2f6fdb; --now: #fff1b8; --cut: #b8b2a9; --danger: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161514; --fg: #ecebe8; --muted: #9c978f; --line: #2c2a28;
+      --accent: #7aa7ff; --now: #4a4120; --cut: #5e5a55; --danger: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 1; background: var(--bg);
+           border-bottom: 1px solid var(--line); padding: 12px 16px; }
+  .row { max-width: 48rem; margin: 0 auto; display: flex; gap: 12px; align-items: center;
+         flex-wrap: wrap; }
+  h1 { font-size: 1rem; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .stats { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  audio { width: 100%; max-width: 48rem; display: block; margin: 10px auto 0; height: 36px; }
+  button { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 6px;
+           border: 1px solid var(--line); background: transparent; color: var(--fg);
+           cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, .w:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { max-width: 48rem; margin: 0 auto; padding: 24px 16px 96px; }
+  #text { font: 1.15rem/1.9 Georgia, "Iowan Old Style", serif; overflow-wrap: anywhere; }
+  .w { border-radius: 3px; cursor: pointer; }
+  .w:hover { background: var(--line); }
+  .w.del { color: var(--cut); text-decoration: line-through; }
+  .w.now { background: var(--now); }
+  #status { color: var(--muted); }
+  #status.err { color: var(--danger); }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg);
+           border-top: 1px solid var(--line); padding: 8px 16px; color: var(--muted);
+           font-size: .85rem; }
+  kbd { font: .8rem ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px;
+        padding: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1 id="name">talkcut</h1>
+    <span class="stats" id="stats"></span>
+    <span class="spacer"></span>
+    <button id="fillers" disabled>Delete fillers</button>
+    <button id="undo" disabled>Undo</button>
+    <button id="export" class="primary" disabled>Export</button>
+  </div>
+  <audio id="audio" controls preload="auto" src="/media"></audio>
+</header>
+<main>
+  <p id="status" role="status">Loading…</p>
+  <div id="text"></div>
+</main>
+<footer>
+  <div class="row">
+    <span>Click a word to jump there. Select words and press <kbd>Delete</kbd> to cut or restore
+      them. <kbd>Space</kbd> play/pause, <kbd>⌘Z</kbd> / <kbd>Ctrl+Z</kbd> undo.</span>
+  </div>
+</footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const audio = $("audio"), text = $("text"), status = $("status");
+let words = [], spans = [], deleted = new Set(), cuts = [], fillers = [], duration = 0;
+const history = [];
+
+function say(msg, isError = false) {
+  status.textContent = msg; status.className = isError ? "err" : ""; status.hidden = !msg;
+}
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+
+async function load() {
+  const r = await (await fetch("/api/project")).json();
+  if (r.status === "transcribing") {
+    say(`Transcribing locally… ${Math.round(r.progress * 100)}%`);
+    return setTimeout(load, 500);
+  }
+  if (r.status === "error") return say(r.error, true);
+  ({ words, duration } = r.project);
+  deleted = new Set(r.project.deleted);
+  ({ cuts, fillers } = r);
+  $("name").textContent = r.project.media;
+  document.title = `${r.project.media} · talkcut`;
+  render();
+  say(words.length ? "" : "No speech found in this file.");
+  for (const b of ["fillers", "export"]) $(b).disabled = false;
+}
+
+function render() {
+  const frag = document.createDocumentFragment();
+  spans = words.map((w, i) => {
+    const s = document.createElement("span");
+    s.className = "w" + (deleted.has(i) ? " del" : "");
+    s.textContent = w.text;
+    s.dataset.i = i;
+    frag.append(s, " ");
+    return s;
+  });
+  text.replaceChildren(frag);
+  updateStats();
+}
+
+function updateStats() {
+  const removed = cuts.reduce((t, [a, b]) => t + (b - a), 0);
+  $("stats").textContent = `${fmt(duration)} → ${fmt(duration - removed)} · ${deleted.size} words cut`;
+  $("undo").disabled = history.length === 0;
+}
+
+async function setDeleted(next, record = true) {
+  if (record) history.push([...deleted]);
+  deleted = next;
+  spans.forEach((s, i) => s.classList.toggle("del", deleted.has(i)));
+  try {
+    const r = await fetch("/api/edits", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted: [...deleted] }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error);
+    cuts = (await r.json()).cuts;
+    say("");
+  } catch (e) {
+    say(`Couldn't save the edit: ${e.message}`, true);
+  }
+  updateStats();
+}
+
+function selectedIndices() {
+  const sel = getSelection();
+  if (!sel.rangeCount || sel.isCollapsed) return [];
+  return spans.filter((s) => sel.containsNode(s, true)).map((s) => +s.dataset.i);
+}
+
+function toggleSelection() {
+  const picked = selectedIndices();
+  if (!picked.length) return;
+  const next = new Set(deleted);
+  const restore = picked.every((i) => deleted.has(i));
+  picked.forEach((i) => (restore ? next.delete(i) : next.add(i)));
+  getSelection().removeAllRanges();
+  setDeleted(next);
+}
+
+text.addEventListener("click", (e) => {
+  const s = e.target.closest(".w");
+  if (!s || !getSelection().isCollapsed) return;
+  audio.currentTime = words[+s.dataset.i].start;
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("button, audio")) return;
+  if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); toggleSelection(); }
+  else if (e.key === " ") { e.preventDefault(); audio.paused ? audio.play() : audio.pause(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); undo(); }
+});
+
+function undo() {
+  if (history.length) setDeleted(new Set(history.pop()), false);
+}
+$("undo").onclick = undo;
+
+$("fillers").onclick = () => {
+  const next = new Set([...deleted, ...fillers]);
+  if (next.size === deleted.size) return say("No filler words left to delete.");
+  setDeleted(next);
+};
+
+$("export").onclick = async () => {
+  const b = $("export");
+  b.disabled = true; say("Exporting…");
+  try {
+    const r = await (await fetch("/api/export", { method: "POST" })).json();
+    if (r.error) throw new Error(r.error);
+    say(`Saved ${fmt(r.duration)} to ${r.path}`);
+  } catch (e) {
+    say(`Export failed: ${e.message}`, true);
+  }
+  b.disabled = false;
+};
+
+// Preview: skip over cuts and highlight the word being spoken. The rAF loop checks every
+// frame so cut audio doesn't leak through. Browsers stop rAF in background tabs, so
+// timeupdate (~4 times a second, coarser) keeps skipping when the editor isn't visible.
+function skipCut() {
+  const t = audio.currentTime;
+  const cut = cuts.find(([a, b]) => t >= a && t < b);
+  if (cut && !audio.paused) audio.currentTime = cut[1];
+}
+audio.addEventListener("timeupdate", skipCut);
+
+let now = -1;
+function tick() {
+  skipCut();
+  const t = audio.currentTime;
+  let lo = 0, hi = words.length - 1, i = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (words[mid].start <= t) { i = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  if (i !== now) {
+    spans[now]?.classList.remove("now");
+    spans[i]?.classList.add("now");
+    now = i;
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+load();
+</script>
+</body>
+</html>
