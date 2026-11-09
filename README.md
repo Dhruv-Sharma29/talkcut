@@ -39,7 +39,7 @@ uv sync
 uv run talkcut episode.mp3                                   # opens the editor in your browser
 uv run talkcut episode.mp3 --remove-fillers -o clean.mp3     # no editor: cut um/uh/hmm and export
 uv run talkcut episode.mp3 --model small                     # slower, more accurate transcript
-uv run pytest                                                # 12 tests: cut planning, snapping, render
+uv run pytest                                                # 13 tests: cut planning, snapping, render
 uv run python bench/real_clip.py episode.mp3 --start 600     # filler count and cut damage on a real clip
 ```
 
@@ -67,6 +67,7 @@ redistributed here (`samples/` is gitignored).
 | --- | --- |
 | Transcription, whole episode, `base`, int8 on CPU | **180 s for 59 min** (about 20× real time), 2.5 GB peak memory, 10,685 words |
 | Fillers found, whole episode, initial prompt only | 1 |
+| Fillers found, whole episode, hotwords | **94** (transcription 153 s, 3.1 GB peak) |
 | Fillers found, 5-min excerpt (10:00–15:00) | 0 plain, 3 with the prompt, **17 with hotwords** (`small` model: 13, 3× slower) |
 | Fillers with sound under them | 16 of 17 |
 | Run-to-run stability | the same excerpt, re-encoded and transcribed again, gives 23 fillers, not 17 |
@@ -91,6 +92,23 @@ episode, because it only conditions Whisper's first 30 s window; hotwords apply 
 window. Detection also isn't stable between runs. The episode is professionally produced and
 may have had fillers edited out already, so 17 in 5 minutes may undercount or may be most of
 them; nobody has listened and labelled it yet.
+
+### Editing the whole episode
+
+10,755 words in the browser editor, all 94 fillers deleted (92 cuts after merging neighbours):
+
+| Operation | Before | After |
+| --- | --- | --- |
+| Load and render the transcript | 32 ms fetch (474 KB), 76 ms render | (unchanged) |
+| Delete fillers: save, re-plan, snap | 52 ms round trip | (unchanged) |
+| Select 2,000 words | **4,178 ms** | **0.2 ms** |
+| Export 57 min of mp3 | **71.9 s** | **16.8 s** (re-encoding with no cuts: 14.5 s) |
+
+Selection asked the browser about every word on the page; it now reads the selection's two ends.
+Export gave ffmpeg one filter branch per kept range on a single input, so every decoded frame
+went to every branch; each range is now its own seeked input. That needs one open file per
+range, so render raises the process limit (macOS shells default to 256, and ffmpeg failed at
+input 253 without it).
 
 ### A synthetic clip
 
@@ -125,8 +143,8 @@ bring back more than 0.1 s of a deleted word. Both cases are unit tests.
   skipping falls back to `timeupdate` (about 4 times a second) and up to ~250 ms of cut audio can
   leak into the preview. Export is unaffected.
 - **Audio only.** Video is M4.
-- **Long-file editing is untested.** Transcribing an hour works (above). The editor with 10k words
-  and an export with thousands of cuts (one ffmpeg branch per kept segment) haven't been tried.
+- **Tested at one hour, not beyond.** A two-hour episode, or thousands of cuts, hasn't been tried.
+  Transcription memory peaked at 3.1 GB for one hour.
 
 ## Docs
 

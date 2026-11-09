@@ -10,7 +10,7 @@ Brief: [SPEC.md](SPEC.md). Question:
 | Milestone | State |
 | --- | --- |
 | M1 core loop | **Done.** Transcribe, edit, preview, export, headless filler removal, snapping to pauses; checked on a real 59-min podcast |
-| M2 long episodes | **Started.** `base` transcribes 59 min in 180 s (2.5 GB). Editor and export at that size untested |
+| M2 long episodes | **Mostly done.** 59 min: transcribe 153 s, editor responsive at 10,755 words, export 16.8 s. Other model sizes not timed |
 | M3 edit quality | **Started.** Hotwords: 3 → 17 fillers on a 5-min excerpt; cut-neighbour check 31/34 snapped vs 28/34 unsnapped. No labelled ground truth yet |
 | M4 video and hand-off | Not started |
 
@@ -44,8 +44,9 @@ talkcut/
 ### M2 — Long episodes
 - [x] 60-minute episode, `base`: 180 s for 59 min, 2.5 GB peak.
 - [ ] Same for `tiny` and `small`.
-- [ ] Transcription progress in the UI instead of a blocking request.
-- [ ] Editor stays responsive with ~10k words.
+- [x] Transcription progress in the UI instead of a blocking request (background thread + polling).
+- [x] Editor stays responsive with ~10k words. *Selection was 4.2 s for 2,000 words; now 0.2 ms.*
+- [x] Export an hour with ~100 cuts: 16.8 s. *Was 72 s; one seeked input per range.*
 
 ### M3 — Edit quality
 - [x] Filler counts: plain 0, initial prompt 3, hotwords 17 on the same 5-min excerpt.

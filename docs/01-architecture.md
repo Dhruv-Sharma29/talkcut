@@ -73,9 +73,15 @@ a pause can be found inside a word. Both are M3 measurements.
 
 ## Rendering
 
-ffmpeg reads one filter graph: one `atrim` branch per kept range, a 10 ms fade in and out on each,
-then `concat`. The graph is passed as a file (`-/filter_complex`, ffmpeg 7+) so hundreds of cuts
-don't hit argument-length limits. Fades rather than crossfades: simpler, and a crossfade would
+Each kept range is its own ffmpeg input, seeked with `-ss`/`-t`, so every part of the file is
+decoded once. Each gets a 10 ms fade in and out, then `concat` joins them. The graph is passed as
+a file (`-/filter_complex`, ffmpeg 7+) so hundreds of cuts don't hit argument-length limits.
+
+The first version used one input and one `atrim` branch per range. ffmpeg then hands every
+decoded frame to every branch, so cost grows with ranges × duration: 72 s for a 57-minute export
+with 93 ranges, against 17 s now. One input per range means one open file per range, and macOS
+shells default to 256 open files; `render` raises the soft limit toward the hard limit before
+calling ffmpeg. `uv run` raises it on its own, which hides the problem in development. Fades rather than crossfades: simpler, and a crossfade would
 shorten the output by the overlap. Whether fades are enough to make joints inaudible is the M3
 listening test.
 

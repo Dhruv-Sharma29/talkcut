@@ -42,7 +42,7 @@ The question this project asks:
 | Criterion | Target | Measured by |
 | --- | --- | --- |
 | Transcription speed on the M4, `base` model | 60 min episode in under 10 min | **Met:** 59 min in 180 s (README) |
-| Export time | under 30 s for 60 min with 300 cuts | M2 timing run |
+| Export time | under 30 s for 60 min with 300 cuts | 16.8 s for 57 min with 92 cuts; 300 not tried |
 | Joints | no audible clicks in a blind listen | M3 listening test |
 | Filler recall | reported, with and without hotwords | M3 labelled clip |
 | No data loss | edits survive reload and crash | test + manual check |
