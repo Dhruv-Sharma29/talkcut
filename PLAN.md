@@ -9,9 +9,9 @@ Brief: [SPEC.md](SPEC.md). Question:
 
 | Milestone | State |
 | --- | --- |
-| M1 core loop | **Working on a synthetic clip.** Transcribe, edit, preview, export, headless filler removal, snapping to pauses. Real-recording run still open |
-| M2 long episodes | Not started |
-| M3 edit quality | Not started |
+| M1 core loop | **Done.** Transcribe, edit, preview, export, headless filler removal, snapping to pauses; checked on a real 59-min podcast |
+| M2 long episodes | **Started.** `base` transcribes 59 min in 180 s (2.5 GB). Editor and export at that size untested |
+| M3 edit quality | **Started.** Hotwords: 3 → 17 fillers on a 5-min excerpt; cut-neighbour check 31/34 snapped vs 28/34 unsnapped. No labelled ground truth yet |
 | M4 video and hand-off | Not started |
 
 ## Layout
@@ -39,15 +39,20 @@ talkcut/
 - [x] Snap cut edges to pauses; never bring back a deleted word. *Added: not in the original
       plan. Whisper timestamps were up to ~220 ms off and clipped surviving words.*
 - [x] End-to-end run on a synthetic clip (macOS `say`), timings in README.
-- [ ] End-to-end run on a real recording.
+- [x] End-to-end run on a real recording (NASA podcast ep. 440, README).
 
 ### M2 — Long episodes
-- [ ] 60-minute episode: real-time factor for `tiny`, `base`, `small` on the M4.
+- [x] 60-minute episode, `base`: 180 s for 59 min, 2.5 GB peak.
+- [ ] Same for `tiny` and `small`.
 - [ ] Transcription progress in the UI instead of a blocking request.
 - [ ] Editor stays responsive with ~10k words.
 
 ### M3 — Edit quality
-- [ ] Hand-label fillers in one clip; measure recall with and without the verbatim prompt.
+- [x] Filler counts: plain 0, initial prompt 3, hotwords 17 on the same 5-min excerpt.
+      *The prompt only conditions the first 30 s window; replaced by hotwords.*
+- [x] Cut-neighbour check (`bench/real_clip.py`): snapped 31/34, unsnapped 28/34.
+- [ ] Hand-label fillers in one clip to measure recall and precision properly.
+- [ ] Make filler detection stable between runs (same audio gave 17, then 23).
 - [ ] Listening test: fades vs crossfades at joints.
 - [ ] Optional pause shortening (cap silences at N ms).
 
