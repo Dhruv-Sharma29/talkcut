@@ -149,34 +149,46 @@ def probe_duration(path):
     return float(out.stdout.strip())
 
 
+def _allow_open_files(n):
+    """ffmpeg opens the source once per kept range; macOS shells default to 256 open files."""
+    try:
+        import resource
+    except ImportError:  # Windows: no rlimit, and its default handle limit is much higher
+        return
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft != resource.RLIM_INFINITY and soft < n:
+        cap = n if hard == resource.RLIM_INFINITY else min(n, hard)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (cap, hard))
+
+
 def render(src, dst, keep, fade=FADE):
     """Write the `keep` ranges of `src` back to back into `dst`, fading each joint.
+
+    Each range is its own input, seeked with -ss/-t, so ffmpeg decodes every part of the file
+    once. (One `atrim` branch per range on a single input made ffmpeg hand every decoded frame
+    to every branch: 72 s for a 57-minute episode with 93 ranges, against 17 s this way and a
+    15 s floor for re-encoding the mp3 with no cuts at all.)
 
     The output format follows dst's extension. Needs ffmpeg 7 or newer (the graph is passed
     as a file with `-/filter_complex`, so hundreds of cuts don't hit argument-length limits).
     """
-    # ponytail: one atrim branch per segment; fine for hundreds of cuts, measure in M2 before
-    # assuming it holds for thousands.
-    parts, labels = [], []
+    keep = [(a, b) for a, b in keep if b - a >= 2 * fade]
+    if not keep:
+        raise ValueError("nothing left to export: every word is deleted")
+    args, parts, labels = ["ffmpeg", "-v", "error", "-y"], [], []
     for k, (a, b) in enumerate(keep):
         d = b - a
-        if d < 2 * fade:
-            continue
-        parts.append(
-            f"[0:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,"
-            f"afade=t=in:d={fade},afade=t=out:st={d - fade:.3f}:d={fade}[a{k}]"
-        )
+        args += ["-ss", f"{a:.3f}", "-t", f"{d:.3f}", "-i", src]
+        parts.append(f"[{k}:a]afade=t=in:d={fade},afade=t=out:st={d - fade:.3f}:d={fade}[a{k}]")
         labels.append(f"[a{k}]")
-    if not labels:
-        raise ValueError("nothing left to export: every word is deleted")
     graph = ";".join(parts) + f";{''.join(labels)}concat=n={len(labels)}:v=0:a=1[out]"
+    _allow_open_files(len(keep) + 64)
 
     with tempfile.NamedTemporaryFile("w", suffix=".ffgraph", delete=False) as f:
         f.write(graph)
     try:
         r = subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-i", src, "-/filter_complex", f.name,
-             "-map", "[out]", dst],
+            args + ["-/filter_complex", f.name, "-map", "[out]", dst],
             capture_output=True, text=True,
         )
     finally:

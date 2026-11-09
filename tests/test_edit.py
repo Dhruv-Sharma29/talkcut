@@ -93,3 +93,17 @@ def test_rendered_length_matches_the_kept_ranges(tmp_path):
     )
     render(str(src), str(dst), [(0.0, 1.0), (2.0, 3.0)])
     assert probe_duration(str(dst)) == pytest.approx(2.0, abs=0.01)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_render_handles_more_ranges_than_the_default_open_file_limit(tmp_path):
+    # One input per range: 300 ranges is past macOS's default limit of 256 open files.
+    # `uv run` raises that limit itself, so this only bites without uv (pip/pipx installs):
+    # check with `ulimit -n 256; .venv/bin/python -m pytest`.
+    src, dst = tmp_path / "tone.wav", tmp_path / "out.wav"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=440:d=30", str(src)], check=True
+    )
+    keep = [(k * 0.1, k * 0.1 + 0.05) for k in range(300)]
+    render(str(src), str(dst), keep)
+    assert probe_duration(str(dst)) == pytest.approx(15.0, abs=0.05)

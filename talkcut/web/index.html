@@ -136,9 +136,32 @@ async function setDeleted(next, record = true) {
   updateStats();
 }
 
+// The word index at one end of the selection, or -1 if that end isn't in the transcript.
+// Between words (the " " text nodes) it steps inward to the nearest word in the selection.
+function edgeWord(container, offset, isStart) {
+  if (!text.contains(container)) return -1;
+  let node = container.nodeType === Node.TEXT_NODE ? container : container.childNodes[offset];
+  const word = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  if (word?.classList?.contains("w") && word !== text) {
+    const len = container.nodeType === Node.TEXT_NODE ? container.length : 1;
+    if (isStart && container.nodeType === Node.TEXT_NODE && offset === len) node = word.nextSibling;
+    else if (!isStart && container.nodeType === Node.TEXT_NODE && offset === 0) node = word.previousSibling;
+    else return +word.dataset.i;
+  }
+  if (!node && !isStart) node = container.childNodes[offset - 1] ?? text.lastChild;
+  while (node && !node.classList?.contains("w")) node = isStart ? node.nextSibling : node.previousSibling;
+  return node ? +node.dataset.i : -1;
+}
+
 function selectedIndices() {
   const sel = getSelection();
   if (!sel.rangeCount || sel.isCollapsed) return [];
+  const r = sel.getRangeAt(0);
+  const a = edgeWord(r.startContainer, r.startOffset, true);
+  const b = edgeWord(r.endContainer, r.endOffset, false);
+  if (a >= 0 && b >= a) return Array.from({ length: b - a + 1 }, (_, k) => a + k);
+  // Selection starts or ends outside the transcript: fall back to asking about every word.
+  // That's O(words) DOM calls (seconds at 10k words), so only for this rare case.
   return spans.filter((s) => sel.containsNode(s, true)).map((s) => +s.dataset.i);
 }
 
