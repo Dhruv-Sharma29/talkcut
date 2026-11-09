@@ -10,8 +10,9 @@ reference afterwards.
 | # | Doc | What it settles |
 | --- | --- | --- |
 | 00 | [Charter](00-charter.md) | The question, scope and non-goals, success criteria |
+| 01 | [Architecture](01-architecture.md) | Data flow, design rules, cut planning, snapping to pauses |
 
-More docs are added as milestones reach them (architecture with M1, evaluation with M3).
+More docs are added as milestones reach them (evaluation with M3).
 
 Brief: [SPEC.md](../SPEC.md) · Plan and progress: [PLAN.md](../PLAN.md)
 

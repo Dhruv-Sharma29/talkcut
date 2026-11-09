@@ -9,7 +9,7 @@ Brief: [SPEC.md](SPEC.md). Question:
 
 | Milestone | State |
 | --- | --- |
-| M1 core loop | **In progress.** |
+| M1 core loop | **Working on a synthetic clip.** Transcribe, edit, preview, export, headless filler removal, snapping to pauses. Real-recording run still open |
 | M2 long episodes | Not started |
 | M3 edit quality | Not started |
 | M4 video and hand-off | Not started |
@@ -30,13 +30,16 @@ talkcut/
 ## Milestones
 
 ### M1 — Core loop
-- [ ] Cut planner: runs of deleted words become cut ranges, padded and clamped.
-- [ ] ffmpeg render with short fades at each joint; output length matches the plan.
-- [ ] Transcription with word timestamps, cached next to the media file.
-- [ ] Editor: select and delete, undo, preview skips cuts, export.
-- [ ] Edits saved on every change.
-- [ ] Headless filler removal.
-- [ ] End-to-end run on a real clip, with timings recorded.
+- [x] Cut planner: runs of deleted words become cut ranges, padded and clamped.
+- [x] ffmpeg render with short fades at each joint; output length matches the plan.
+- [x] Transcription with word timestamps, cached next to the media file.
+- [x] Editor: select and delete, undo, preview skips cuts, export.
+- [x] Edits saved on every change (checked: survive a page reload).
+- [x] Headless filler removal.
+- [x] Snap cut edges to pauses; never bring back a deleted word. *Added: not in the original
+      plan. Whisper timestamps were up to ~220 ms off and clipped surviving words.*
+- [x] End-to-end run on a synthetic clip (macOS `say`), timings in README.
+- [ ] End-to-end run on a real recording.
 
 ### M2 — Long episodes
 - [ ] 60-minute episode: real-time factor for `tiny`, `base`, `small` on the M4.
