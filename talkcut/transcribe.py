@@ -8,9 +8,11 @@ import json
 import os
 import subprocess
 
-# Whisper tends to tidy speech up and leave out "um"/"uh". Priming it with disfluent text
-# makes it keep them more often. How much more is an open question for M3.
-VERBATIM_PROMPT = "Umm, let me think like, hmm... Okay, here's what I'm, like, thinking."
+# Whisper tidies speech up and leaves out "um"/"uh". An initial prompt full of fillers only
+# conditions the first 30 s window, and on a real 59-minute podcast it found 1 filler in 10,685
+# words. Hotwords are added to every window; with per-window decoding they found 17 fillers in a
+# 5-minute excerpt where the prompt found 3, and 16 of the 17 had sound under them (README).
+HOTWORDS = "Um, uh, hmm, er, ah"
 
 
 def project_path(media):
@@ -33,13 +35,13 @@ def load_audio(media, sr=16000):
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe(media, model="base", language=None, on_progress=None):
+def transcribe(media, model="base", language=None, on_progress=None, verbatim=True):
     from faster_whisper import WhisperModel  # slow import; only pay for it when transcribing
 
     whisper = WhisperModel(model, device="auto", compute_type="int8")
+    extra = dict(hotwords=HOTWORDS, condition_on_previous_text=False) if verbatim else {}
     segments, info = whisper.transcribe(
-        load_audio(media), word_timestamps=True, initial_prompt=VERBATIM_PROMPT,
-        language=language,
+        load_audio(media), word_timestamps=True, language=language, **extra
     )
     words = []
     for seg in segments:  # a generator: transcription happens as we iterate
