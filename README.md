@@ -41,6 +41,7 @@ uv run talkcut episode.mp3 --remove-fillers -o clean.mp3     # no editor: cut um
 uv run talkcut episode.mp3 --model small                     # slower, more accurate transcript
 uv run pytest                                                # 13 tests: cut planning, snapping, render
 uv run python bench/real_clip.py episode.mp3 --start 600     # filler count and cut damage on a real clip
+uv run python bench/stability.py episode.mp3 --start 600     # which fillers survive inaudible changes
 ```
 
 The first run downloads the Whisper model (`base` is about 140 MB) from Hugging Face. After that,
@@ -70,7 +71,8 @@ redistributed here (`samples/` is gitignored).
 | Fillers found, whole episode, hotwords | **94** (transcription 153 s, 3.1 GB peak) |
 | Fillers found, 5-min excerpt (10:00–15:00) | 0 plain, 3 with the prompt, **17 with hotwords** (`small` model: 13, 3× slower) |
 | Fillers with sound under them | 16 of 17 |
-| Run-to-run stability | the same excerpt, re-encoded and transcribed again, gives 23 fillers, not 17 |
+| Same audio, transcribed 3 times | identical: 17 fillers at the same timestamps each time |
+| Six versions you couldn't tell apart (10 ms edge fades, -80 dB noise, start 0.5–2 s later) | 14–17 fillers each, at **21 distinct spots; only 8 found by every version** (`bench/stability.py`) |
 
 Cut damage, measured by `bench/real_clip.py`. For each of the 17 filler cuts, the kept word on
 either side should still be in the export at the predicted time. Whisper transcribes each export
@@ -89,9 +91,13 @@ halves the damage on real speech, but 3 of 34 neighbouring words still get hurt,
 leaves a few filler fragments because it may keep up to 0.1 s of a deleted word. The weakest link
 is detection. The prompt that worked on synthetic speech found almost nothing on the real
 episode, because it only conditions Whisper's first 30 s window; hotwords apply to every
-window. Detection also isn't stable between runs. The episode is professionally produced and
-may have had fillers edited out already, so 17 in 5 minutes may undercount or may be most of
-them; nobody has listened and labelled it yet.
+window. Detection is deterministic but fragile: Whisper decodes in 30 s windows and each one
+starts where the last ended, so a change no one could hear moves every boundary after it, and
+borderline fillers drop in or out. One transcription catches about two thirds of the spots that
+some version finds, and most of the spots it misses have sound under them. Transcribing twice
+and taking the union would catch more, at twice the time, but whether those extra spots are
+real fillers needs a hand-labelled clip first. The episode is professionally produced and may
+have had fillers edited out already; nobody has listened and labelled it yet.
 
 ### Editing the whole episode
 
@@ -132,9 +138,9 @@ bring back more than 0.1 s of a deleted word. Both cases are unit tests.
 
 - **One real recording so far**, professionally produced, three speakers. No hand-labelled ground
   truth, so filler *recall* is unknown; only counts and "has sound under it" are measured.
-- **Filler detection is unstable.** Hotwords raise the count a lot, but the same audio
-  transcribed twice can give a different set. Filler removal can only cut what the transcript
-  contains.
+- **Filler detection is fragile.** The same file always gives the same transcript (and it is
+  saved, so the editor never changes under you), but audio that differs inaudibly can give a
+  different set of fillers. Filler removal can only cut what the transcript contains.
 - **Cuts still hurt about 1 in 11 neighbouring words** on the real excerpt (3 of 34), and can
   leave short filler fragments.
 - **Pause detection is relative to the loudest parts of the file.** Noisy rooms will need a

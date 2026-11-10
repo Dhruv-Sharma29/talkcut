@@ -11,7 +11,7 @@ Brief: [SPEC.md](SPEC.md). Question:
 | --- | --- |
 | M1 core loop | **Done.** Transcribe, edit, preview, export, headless filler removal, snapping to pauses; checked on a real 59-min podcast |
 | M2 long episodes | **Mostly done.** 59 min: transcribe 153 s, editor responsive at 10,755 words, export 16.8 s. Other model sizes not timed |
-| M3 edit quality | **Started.** Hotwords: 3 → 17 fillers on a 5-min excerpt; cut-neighbour check 31/34 snapped vs 28/34 unsnapped. No labelled ground truth yet |
+| M3 edit quality | **Started.** Hotwords: 3 → 17 fillers on a 5-min excerpt; cut-neighbour check 31/34 snapped vs 28/34 unsnapped; detection deterministic but window-sensitive (8 of 21 spots stable). No labelled ground truth yet |
 | M4 video and hand-off | Not started |
 
 ## Layout
@@ -53,7 +53,11 @@ talkcut/
       *The prompt only conditions the first 30 s window; replaced by hotwords.*
 - [x] Cut-neighbour check (`bench/real_clip.py`): snapped 31/34, unsnapped 28/34.
 - [ ] Hand-label fillers in one clip to measure recall and precision properly.
-- [ ] Make filler detection stable between runs (same audio gave 17, then 23).
+- [x] Find out why the same excerpt gave 17 fillers, then 23. *Not randomness: the same
+      samples always give the same transcript. Inaudible changes shift Whisper's 30 s windows;
+      six such versions found 21 spots, only 8 by all (`bench/stability.py`).*
+- [ ] Decide on two-pass union detection, once the labelled clip says whether the extra spots
+      are real.
 - [ ] Listening test: fades vs crossfades at joints.
 - [ ] Optional pause shortening (cap silences at N ms).
 
