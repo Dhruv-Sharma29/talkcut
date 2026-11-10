@@ -18,7 +18,7 @@ covered by an issue, open one first and describe the problem before the solution
 
 ## Setup
 
-Requires Python 3.10–3.13, [uv](https://docs.astral.sh/uv/) and **ffmpeg 7 or newer** (render
+Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/) and **ffmpeg 7 or newer** (render
 passes its filter graph with `-/filter_complex`, added in ffmpeg 7).
 
 ```bash

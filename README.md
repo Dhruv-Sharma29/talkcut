@@ -33,7 +33,7 @@ deleted, so the preview and the export can't disagree. Design rules and the snap
 
 ## Run it
 
-Requires Python 3.10–3.13, [uv](https://docs.astral.sh/uv/) and ffmpeg 7 or newer
+Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/) and ffmpeg 7 or newer
 (`brew install ffmpeg`).
 
 ```bash

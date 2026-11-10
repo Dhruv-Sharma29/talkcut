@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Edit spoken audio by editing its transcript. Local Whisper, nothing leaves your machine."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = ["faster-whisper>=1.1"]
 
 [project.scripts]
