@@ -1,5 +1,7 @@
 # talkcut
 
+[![CI](https://github.com/Dhruv-Sharma29/talkcut/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhruv-Sharma29/talkcut/actions/workflows/ci.yml)
+
 Edit spoken audio by editing its transcript. Transcription runs locally with Whisper; deleting a
 word in the text deletes that stretch of audio. Nothing is uploaded, and the source file is never
 modified.
