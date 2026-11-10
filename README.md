@@ -39,7 +39,7 @@ uv sync
 uv run talkcut episode.mp3                                   # opens the editor in your browser
 uv run talkcut episode.mp3 --remove-fillers -o clean.mp3     # no editor: cut um/uh/hmm and export
 uv run talkcut episode.mp3 --model small                     # slower, more accurate transcript
-uv run pytest                                                # 13 tests: cut planning, snapping, render
+uv run pytest                                                # 15 tests: cut planning, snapping, render, server
 uv run python bench/real_clip.py episode.mp3 --start 600     # filler count and cut damage on a real clip
 uv run python bench/stability.py episode.mp3 --start 600     # which fillers survive inaudible changes
 ```

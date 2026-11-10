@@ -24,7 +24,7 @@ passes its filter graph with `-/filter_complex`, added in ffmpeg 7).
 ```bash
 brew install ffmpeg        # macOS; on Linux use a static build if your distro's ffmpeg is older than 7
 uv sync
-uv run pytest              # 13 tests, a few seconds, no model download
+uv run pytest              # 15 tests, a few seconds, no model download
 uv run talkcut some.mp3    # first run downloads the Whisper model (~140 MB for base)
 ```
 
@@ -41,7 +41,8 @@ request must keep:
 2. **One place decides cuts.** `talkcut/edit.py` turns deleted word indices into time ranges.
    The browser never computes cuts, so preview and export can't disagree.
 3. **Edits are saved as they happen**, atomically (temp file, then `os.replace`).
-4. **Local only.** The server binds to `127.0.0.1`; no telemetry, no uploads.
+4. **Local only.** The server binds to `127.0.0.1` and refuses requests other sites could
+   forge; no telemetry, no uploads.
 
 ## What a good pull request looks like
 

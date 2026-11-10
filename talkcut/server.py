@@ -60,7 +60,19 @@ def make_handler(state):
             n = int(self.headers.get("Content-Length") or 0)
             return json.loads(self.rfile.read(n) or b"{}")
 
+        def forged(self):
+            """True for requests a web page elsewhere could make. Binding to 127.0.0.1 doesn't
+            stop the browser itself from reaching the server on another site's behalf."""
+            port = self.server.server_address[1]
+            ours = {f"127.0.0.1:{port}", f"localhost:{port}"}
+            if self.headers.get("Host") not in ours:  # DNS rebinding: evil.com -> 127.0.0.1
+                return True
+            origin = self.headers.get("Origin")  # browsers send it on cross-site requests
+            return origin is not None and origin.removeprefix("http://") not in ours
+
         def do_GET(self):
+            if self.forged():
+                return self.send_error(403)
             if self.path == "/":
                 body = files("talkcut").joinpath("web/index.html").read_bytes()
                 self.send_response(200)
@@ -85,6 +97,12 @@ def make_handler(state):
                 self.send_error(404)
 
         def do_POST(self):
+            if self.forged():
+                return self.send_error(403)
+            # A page can send a text/plain POST to any site without asking first; JSON needs a
+            # CORS preflight, which this server never approves.
+            if self.headers.get_content_type() != "application/json":
+                return self.send_json({"error": "expected application/json"}, 415)
             if state.project is None:
                 return self.send_json({"error": "still transcribing"}, 409)
             if self.path == "/api/edits":

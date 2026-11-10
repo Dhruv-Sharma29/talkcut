@@ -36,7 +36,9 @@ ffmpeg 7+ must be on PATH. Benchmarks download a Whisper model on first run and 
 - `edit.final_cuts` is the only code that turns edits into time ranges. Don't compute cuts or the
   filler list in JavaScript; the page receives both from the server.
 - Saves are atomic: write a temp file, then `os.replace`.
-- The server binds to `127.0.0.1` only. No network calls besides faster-whisper's model download.
+- The server binds to `127.0.0.1` only and refuses requests other sites could forge
+  (`Handler.forged`, JSON-only POSTs; `tests/test_server.py`). No network calls besides
+  faster-whisper's model download.
 - Snapping never moves a cut edge far enough to keep more than 0.1 s of a deleted word
   (`test_snapping_never_brings_back_a_deleted_word`).
 

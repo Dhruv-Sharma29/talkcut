@@ -30,6 +30,17 @@ server loses at most the change in flight.
 **Rule 4: local only.** The server binds to `127.0.0.1`. The only network access is the
 one-time model download done by faster-whisper.
 
+Binding to `127.0.0.1` keeps other machines out, not other web pages: any site open in the
+browser can send requests to localhost. Before this was handled, a page on another origin could
+overwrite the edits and trigger an export with a plain `text/plain` POST (checked in a browser).
+So the server refuses:
+
+- requests whose `Host` isn't `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding, where a
+  hostile domain resolves to 127.0.0.1 and reads the transcript as if same-origin);
+- requests with an `Origin` from anywhere else;
+- POSTs that aren't `application/json`. That type needs a CORS preflight, and the server never
+  approves one.
+
 ## Components
 
 | File | Role |

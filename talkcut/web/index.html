@@ -203,7 +203,9 @@ $("export").onclick = async () => {
   const b = $("export");
   b.disabled = true; say("Exporting…");
   try {
-    const r = await (await fetch("/api/export", { method: "POST" })).json();
+    const r = await (await fetch("/api/export", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    })).json();
     if (r.error) throw new Error(r.error);
     say(`Saved ${fmt(r.duration)} to ${r.path}`);
   } catch (e) {
