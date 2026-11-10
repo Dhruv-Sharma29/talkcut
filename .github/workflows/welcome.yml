@@ -1,0 +1,24 @@
+name: Welcome
+
+# pull_request_target so the comment can be posted on PRs from forks. Safe here because this
+# workflow never checks out or runs the PR's code.
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v3
+        with:
+          issue_message: |
+            Thanks for opening your first issue here. If it's about a recording, the details in the **Recording report** form (length, speakers, microphone, machine) make it much easier to act on. Please don't attach recordings of other people.
+          pr_message: |
+            Thanks for your first pull request. CI runs the tests on Linux and macOS. While it runs, a quick check against [CONTRIBUTING.md](https://github.com/Dhruv-Sharma29/talkcut/blob/main/CONTRIBUTING.md): one change per PR, a test for new behaviour in `talkcut/edit.py`, and a source for any number added to the docs.
