@@ -152,6 +152,15 @@ bring back more than 0.1 s of a deleted word. Both cases are unit tests.
 - **Tested at one hour, not beyond.** A two-hour episode, or thousands of cuts, hasn't been tried.
   Transcription memory peaked at 3.1 GB for one hour.
 
+## Contributing
+
+The most useful help right now is running talkcut on your own recordings and filing a
+**Recording report**, and the issues labelled
+[`measurement`](https://github.com/Dhruv-Sharma29/talkcut/labels/measurement) and
+[`good first issue`](https://github.com/Dhruv-Sharma29/talkcut/labels/good%20first%20issue).
+Setup, the rules a pull request must keep, and how numbers get into this README:
+[CONTRIBUTING.md](CONTRIBUTING.md). Coding agents: [AGENTS.md](AGENTS.md).
+
 ## Docs
 
 The plan and design record:

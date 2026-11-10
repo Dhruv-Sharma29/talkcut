@@ -1,0 +1,42 @@
+name: Recording report
+description: You ran talkcut on a real recording; tell us how it went
+labels: [measurement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        talkcut has only been tested on one professionally produced English podcast. Reports on other audio are the most useful thing right now. Please don't attach the recording.
+  - type: textarea
+    id: recording
+    attributes:
+      label: The recording
+      description: Length, number of speakers, microphone or room, language or accent, format.
+      placeholder: 42 min, 2 speakers, laptop mic in a small room, Indian English, mp3
+    validations:
+      required: true
+  - type: input
+    id: machine
+    attributes:
+      label: Machine and model
+      placeholder: MacBook Air M2 16 GB, --model base
+    validations:
+      required: true
+  - type: input
+    id: time
+    attributes:
+      label: Transcription time
+      placeholder: 3 min 10 s
+  - type: textarea
+    id: fillers
+    attributes:
+      label: Fillers
+      description: How many talkcut found, and roughly how many you heard that it missed or got wrong.
+  - type: textarea
+    id: cuts
+    attributes:
+      label: Cut quality
+      description: Any cut that clipped a word you kept, left part of a filler, or clicked. Timestamps help.
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
