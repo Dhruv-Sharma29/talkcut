@@ -57,6 +57,7 @@ uv run talkcut episode.mp3 --model small                     # slower, more accu
 uv run pytest                                                # 15 tests: cut planning, snapping, render, server
 uv run python bench/real_clip.py episode.mp3 --start 600     # filler count and cut damage on a real clip
 uv run python bench/stability.py episode.mp3 --start 600     # which fillers survive inaudible changes
+uv run --with "ctranslate2>=4.9" python bench/device.py episode.mp3 --start 600  # CPU vs Apple GPU
 ```
 
 The first run downloads the Whisper model (`base` is about 140 MB) from Hugging Face. After that,
@@ -130,6 +131,23 @@ Export gave ffmpeg one filter branch per kept range on a single input, so every 
 went to every branch; each range is now its own seeked input. That needs one open file per
 range, so render raises the process limit (macOS shells default to 256, and ffmpeg failed at
 input 253 without it).
+
+### Apple GPU (MPS): faster, but drops speech
+
+ctranslate2 4.9.0 (released 2026-11-10) added an experimental Apple Metal backend. Same 5-minute
+excerpt, `base` model, hotwords on, four runs each (`bench/device.py`):
+
+| Device | Transcription | Words | Fillers |
+| --- | --- | --- | --- |
+| CPU, int8 (talkcut's default) | 36–54 s | 1,083 | 16–17 |
+| MPS, float16 | 19–27 s | **1,021** | 17 |
+
+Timings swing between runs; MPS came out 1.3 to 2.8× faster. The words matter more: in every
+run MPS dropped the same stretch from 14:20 ("...no one took the label off that bottle of
+Nutella. I keep thinking about your food going everywhere..."), 64 words that CPU and the
+full-episode transcript both have, plus "I love my shipmates" at 11:30. Words missing from the
+transcript can't be seen or edited, so talkcut stays on CPU. One clip isn't enough to say MPS
+always does this; worth re-checking when the backend stops being marked experimental.
 
 ### A synthetic clip
 

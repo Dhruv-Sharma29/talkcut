@@ -44,6 +44,8 @@ talkcut/
 ### M2 — Long episodes
 - [x] 60-minute episode, `base`: 180 s for 59 min, 2.5 GB peak.
 - [ ] Same for `tiny` and `small`.
+- [x] Apple GPU (MPS, ctranslate2 4.9.0): 1.3–2.8× faster on the 5-min excerpt but dropped 64
+      words of speech every run. *Staying on CPU; re-check when MPS leaves experimental.*
 - [x] Transcription progress in the UI instead of a blocking request (background thread + polling).
 - [x] Editor stays responsive with ~10k words. *Selection was 4.2 s for 2,000 words; now 0.2 ms.*
 - [x] Export an hour with ~100 cuts: 16.8 s. *Was 72 s; one seeked input per range.*
