@@ -64,4 +64,5 @@ talkcut/
 ### M4 — Video and hand-off
 - [ ] Cut video with the same plan.
 - [ ] Export an edit list (EDL or FCPXML) instead of rendering.
-- [ ] Install with one command (pipx/uv tool, Homebrew later).
+- [x] Install with one command: `uv tool install git+https://github.com/Dhruv-Sharma29/talkcut`
+      (checked from a clean tool dir). PyPI and Homebrew later.

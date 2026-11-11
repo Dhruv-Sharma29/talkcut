@@ -6,6 +6,11 @@ Edit spoken audio by editing its transcript. Transcription runs locally with Whi
 word in the text deletes that stretch of audio. Nothing is uploaded, and the source file is never
 modified.
 
+![Selecting a sentence and pressing Delete, then Delete fillers, then playback skipping the cuts](docs/demo.gif)
+
+*Five minutes of NASA's* Houston We Have a Podcast *(ep. 440, public domain): a sentence is
+selected and deleted, then every um and uh, and playback jumps over the cuts.*
+
 > **Status:** milestone 1 of 4 (core loop) done, and checked on one real 59-minute podcast. Audio
 > only. Filler detection and cut quality are measured below but not yet good enough to trust
 > blindly; see [PLAN.md](PLAN.md).
@@ -35,6 +40,14 @@ deleted, so the preview and the export can't disagree. Design rules and the snap
 
 Requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/) and ffmpeg 7 or newer
 (`brew install ffmpeg`).
+
+```bash
+uv tool install git+https://github.com/Dhruv-Sharma29/talkcut
+talkcut episode.mp3                                          # opens the editor in your browser
+talkcut episode.mp3 --remove-fillers -o clean.mp3            # no editor: cut um/uh/hmm and export
+```
+
+From a clone, for development:
 
 ```bash
 uv sync
