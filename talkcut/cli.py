@@ -20,6 +20,8 @@ def main(argv=None):
                     help="Whisper model: tiny, base, small, medium, large-v3 (default: base)")
     ap.add_argument("--remove-fillers", action="store_true",
                     help="delete um/uh/etc. and export, without opening the editor")
+    ap.add_argument("--srt", action="store_true",
+                    help="also write <name>.edited.srt and <name>.edited.txt matching the export")
     ap.add_argument("-o", "--out", help="output file (default: <name>.edited.<ext>)")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true", help="don't open the editor page")
@@ -49,9 +51,17 @@ def main(argv=None):
     project["deleted"] = sorted(set(project["deleted"]) | set(fillers))
     save(project, project_path(media))
     dst = args.out or edit.edited_path(media)
-    length = edit.export(project, media, dst, edit.frame_levels(load_audio(media)))
+    levels = edit.frame_levels(load_audio(media))
+    length = edit.export(project, media, dst, levels)
     print(f"removed {len(fillers)} fillers: {project['duration']:.1f}s -> {length:.1f}s, "
           f"wrote {dst}")
+    if args.srt:
+        cuts = edit.final_cuts(project, levels)
+        base = os.path.splitext(dst)[0]
+        srt = base + ".srt"
+        txt = base + ".txt"
+        edit.export_subtitles(project, cuts, srt, txt)
+        print(f"wrote {srt} and {txt}")
 
 
 if __name__ == "__main__":
