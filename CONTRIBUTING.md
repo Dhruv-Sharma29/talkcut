@@ -24,7 +24,7 @@ passes its filter graph with `-/filter_complex`, added in ffmpeg 7).
 ```bash
 brew install ffmpeg        # macOS; on Linux use a static build if your distro's ffmpeg is older than 7
 uv sync
-uv run pytest              # 15 tests, a few seconds, no model download
+uv run pytest              # 20 tests, a few seconds, no model download
 uv run talkcut some.mp3    # first run downloads the Whisper model (~140 MB for base)
 ```
 

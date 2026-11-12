@@ -48,8 +48,11 @@ ffmpeg 7+ must be on PATH. Benchmarks download a Whisper model on first run and 
   pauses. Don't cut at raw timestamps.
 - **Whisper drops fillers** unless asked. `transcribe.HOTWORDS` keeps them in every 30 s
   window; an `initial_prompt` only affects the first window.
-- **Transcription is deterministic but fragile.** Same samples, same words. Inaudibly different
-  audio shifts the 30 s windows and changes which fillers appear.
+- **Whisper skips speech silently.** About 73 s per hour on the test podcast.
+  `transcribe.fill_gaps` finds speech with no words using Silero voice detection and transcribes
+  those stretches again. Don't remove it to save time; it costs about 9%.
+- **Transcription is nearly deterministic but fragile.** Same samples, same or nearly the same
+  words. Inaudibly different audio shifts the 30 s windows and changes which fillers appear.
 - **`load_audio` decodes with ffmpeg on purpose**, not PyAV: faster-whisper 1.2.1 passes an
   argument PyAV 19 removed.
 - **`render` opens the source once per kept range.** macOS shells allow 256 open files;

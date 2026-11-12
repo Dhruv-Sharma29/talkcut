@@ -54,6 +54,9 @@ talkcut/
 - [x] Filler counts: plain 0, initial prompt 3, hotwords 17 on the same 5-min excerpt.
       *The prompt only conditions the first 30 s window; replaced by hotwords.*
 - [x] Cut-neighbour check (`bench/real_clip.py`): snapped 31/34, unsnapped 28/34.
+- [x] Recover speech Whisper skipped. *Found while testing MPS: the CPU transcript of the full
+      episode had 9 stretches (~73 s) of speech with no words. `fill_gaps` re-transcribes them:
+      232-240 words back, 0 stretches left, +9% time.*
 - [ ] Hand-label fillers in one clip to measure recall and precision properly.
 - [x] Find out why the same excerpt gave 17 fillers, then 23. *Not randomness: the same
       samples always give the same transcript. Inaudible changes shift Whisper's 30 s windows;

@@ -35,14 +35,69 @@ def load_audio(media, sr=16000):
     return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
 
 
+def speech_gaps(words, speech, duration, slack=0.5, min_speech=1.0, bridge=1.0, frame=0.01):
+    """Stretches of detected speech with no transcribed word within `slack` seconds.
+
+    `speech` is a list of (start, end) from a voice detector. Gaps closer than `bridge` seconds
+    are joined, and a gap counts only if it holds at least `min_speech` seconds of speech.
+    """
+    import numpy as np
+
+    n = int(duration / frame) + 1
+    gap = np.zeros(n, bool)
+    for a, b in speech:
+        gap[int(a / frame):int(b / frame)] = True
+    for w in words:
+        gap[max(0, int((w["start"] - slack) / frame)):int((w["end"] + slack) / frame) + 1] = False
+    out, k, join = [], 0, int(bridge / frame)
+    while k < n:
+        if not gap[k]:
+            k += 1
+            continue
+        e = k
+        while e < n and gap[e:e + join].any():
+            e += 1
+        while not gap[e - 1]:  # don't end on the bridged silence
+            e -= 1
+        if gap[k:e].sum() * frame >= min_speech:
+            out.append((round(k * frame, 2), round(e * frame, 2)))
+        k = e
+    return out
+
+
+def fill_gaps(whisper, audio, words, speech, sr=16000, context=0.3, **options):
+    """Transcribe speech the main pass skipped, and merge those words in.
+
+    Whisper sometimes jumps over a stretch of speech without a trace: on a 59-minute podcast it
+    skipped 9 stretches, about 73 s of speech (README). Each gap is transcribed on its own, with
+    `context` seconds either side, and only words centred inside the gap are kept.
+    """
+    added = []
+    for a, b in speech_gaps(words, speech, len(audio) / sr):
+        lo = max(0.0, a - context)
+        segments, _ = whisper.transcribe(
+            audio[int(lo * sr):int((b + context) * sr)], word_timestamps=True, **options
+        )
+        added += [
+            w for w in (
+                {"text": x.word.strip(), "start": round(x.start + lo, 3), "end": round(x.end + lo, 3)}
+                for s in segments for x in s.words
+            )
+            if a <= (w["start"] + w["end"]) / 2 <= b
+        ]
+    return sorted(words + added, key=lambda w: w["start"]), len(added)
+
+
 def transcribe(media, model="base", language=None, on_progress=None, verbatim=True):
     from faster_whisper import WhisperModel  # slow import; only pay for it when transcribing
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
 
     whisper = WhisperModel(model, device="auto", compute_type="int8")
-    extra = dict(hotwords=HOTWORDS, condition_on_previous_text=False) if verbatim else {}
-    segments, info = whisper.transcribe(
-        load_audio(media), word_timestamps=True, language=language, **extra
-    )
+    options = dict(language=language)
+    if verbatim:
+        options.update(hotwords=HOTWORDS, condition_on_previous_text=False)
+    audio = load_audio(media)
+    segments, info = whisper.transcribe(audio, word_timestamps=True, **options)
     words = []
     for seg in segments:  # a generator: transcription happens as we iterate
         words += [
@@ -50,13 +105,19 @@ def transcribe(media, model="base", language=None, on_progress=None, verbatim=Tr
             for w in seg.words
         ]
         if on_progress:
-            on_progress(min(seg.end / info.duration, 1.0))
+            on_progress(0.9 * min(seg.end / info.duration, 1.0))
+    vad = VadOptions(min_silence_duration_ms=300, speech_pad_ms=100)
+    speech = [(v["start"] / 16000, v["end"] / 16000) for v in get_speech_timestamps(audio, vad)]
+    words, recovered = fill_gaps(whisper, audio, words, speech, **options)
+    if on_progress:
+        on_progress(1.0)
     return {
         "media": os.path.basename(media),
         "duration": round(info.duration, 3),
         "language": info.language,
         "model": model,
         "words": words,
+        "recovered": recovered,  # words from speech the main pass skipped (fill_gaps)
         "deleted": [],
     }
 

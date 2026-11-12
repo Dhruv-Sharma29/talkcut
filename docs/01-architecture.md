@@ -4,6 +4,9 @@
 
 ```text
 file.mp3 ──ffmpeg──> 16 kHz mono samples ──> faster-whisper ──> words + timestamps
+                              │      │                                │
+                              │      └──> Silero voice detection ──> fill_gaps: transcribe
+                              │           speech that has no words, merge them in
                               │                                       │
                               └──> loudness per 10 ms                 v
                                           │                  file.mp3.talkcut.json
@@ -50,6 +53,20 @@ So the server refuses:
 | `talkcut/server.py` | Stdlib HTTP server: page, media with range requests, JSON API; transcribes in a background thread |
 | `talkcut/cli.py` | Argument parsing; editor mode or headless `--remove-fillers` |
 | `talkcut/web/index.html` | The editor. Plain HTML, CSS and JS; no build step |
+
+## Recovering skipped speech
+
+Whisper sometimes moves past a stretch of speech without writing anything for it. On the
+59-minute test episode the main pass left about 73 s of speech, in 9 stretches, with no words
+(README). Words that aren't in the transcript can't be seen, so they can't be kept or cut on
+purpose.
+
+After the main pass, `transcribe` runs the Silero voice detector that ships with faster-whisper
+(5 s for an hour) and `speech_gaps` lists detected speech with no word within 0.5 s. Gaps less
+than 1 s apart are joined (repairing them separately split "I mean" into "I'm" / "mean"), and a
+gap needs at least 1 s of speech. `fill_gaps` transcribes each gap with 0.3 s of context and
+keeps only words centred inside it, so nothing is duplicated at the edges. This happens before
+the project is saved, so no deleted-word index ever points at a shifted word.
 
 ## Cut planning
 

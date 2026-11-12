@@ -21,7 +21,8 @@ selected and deleted, then every um and uh, and playback jumps over the cuts.*
 flowchart LR
     M[Audio file] --> D[ffmpeg decode<br/>16 kHz mono]
     D --> W[faster-whisper<br/>word timestamps]
-    W --> J[(file.talkcut.json<br/>transcript + edits)]
+    W --> RP[Re-transcribe skipped speech<br/>Silero voice detection]
+    RP --> J[(file.talkcut.json<br/>transcript + edits)]
     J --> UI[Browser editor<br/>select words, Delete]
     UI -->|deleted word indices| PL[Cut planner<br/>runs of deleted words]
     D --> LV[Loudness per 10 ms]
@@ -54,7 +55,7 @@ uv sync
 uv run talkcut episode.mp3                                   # opens the editor in your browser
 uv run talkcut episode.mp3 --remove-fillers -o clean.mp3     # no editor: cut um/uh/hmm and export
 uv run talkcut episode.mp3 --model small                     # slower, more accurate transcript
-uv run pytest                                                # 15 tests: cut planning, snapping, render, server
+uv run pytest                                                # 20 tests: cut planning, snapping, render, server, gap repair
 uv run python bench/real_clip.py episode.mp3 --start 600     # filler count and cut damage on a real clip
 uv run python bench/stability.py episode.mp3 --start 600     # which fillers survive inaudible changes
 uv run --with "ctranslate2>=4.9" python bench/device.py episode.mp3 --start 600  # CPU vs Apple GPU
@@ -87,7 +88,7 @@ redistributed here (`samples/` is gitignored).
 | Fillers found, whole episode, hotwords | **94** (transcription 153 s, 3.1 GB peak) |
 | Fillers found, 5-min excerpt (10:00–15:00) | 0 plain, 3 with the prompt, **17 with hotwords** (`small` model: 13, 3× slower) |
 | Fillers with sound under them | 16 of 17 |
-| Same audio, transcribed 3 times | identical: 17 fillers at the same timestamps each time |
+| Same audio, transcribed 3 times | 5-min excerpt: identical, 17 fillers at the same timestamps. Whole episode: 10,749 to 10,755 words across three runs |
 | Six versions you couldn't tell apart (10 ms edge fades, -80 dB noise, start 0.5–2 s later) | 14–17 fillers each, at **21 distinct spots; only 8 found by every version** (`bench/stability.py`) |
 
 Cut damage, measured by `bench/real_clip.py`. For each of the 17 filler cuts, the kept word on
@@ -107,13 +108,37 @@ halves the damage on real speech, but 3 of 34 neighbouring words still get hurt,
 leaves a few filler fragments because it may keep up to 0.1 s of a deleted word. The weakest link
 is detection. The prompt that worked on synthetic speech found almost nothing on the real
 episode, because it only conditions Whisper's first 30 s window; hotwords apply to every
-window. Detection is deterministic but fragile: Whisper decodes in 30 s windows and each one
+window. Detection is (nearly) deterministic but fragile: Whisper decodes in 30 s windows and each one
 starts where the last ended, so a change no one could hear moves every boundary after it, and
 borderline fillers drop in or out. One transcription catches about two thirds of the spots that
 some version finds, and most of the spots it misses have sound under them. Transcribing twice
 and taking the union would catch more, at twice the time, but whether those extra spots are
 real fillers needs a hand-labelled clip first. The episode is professionally produced and may
 have had fillers edited out already; nobody has listened and labelled it yet.
+
+### Speech Whisper skipped, and how it's recovered
+
+Whisper can jump over a stretch of speech and leave no trace. Silero voice detection (bundled
+with faster-whisper, 5 s for the hour) found 9 stretches of speech in the whole episode with no
+word anywhere near them, **about 73 s of speech**, for example 3:05 "The thing that blew my mind
+was how quickly we left Earth". Words that aren't in the transcript can't be seen or edited.
+`vad_filter=True` didn't help: it missed 75 s, in different places.
+
+So after the main pass, talkcut transcribes each of those stretches on its own (with 0.3 s of
+context) and merges in the words centred inside it:
+
+| Whole episode, `base`, CPU | Result |
+| --- | --- |
+| Words recovered | 232 and 240 in two runs |
+| Speech stretches left without words | **0** |
+| Extra time | 22 s: 5.5 s voice detection + 17 s transcription, about 9% of the total |
+| Fillers found | 94 → 105 (recovered speech has fillers too) |
+| Peak memory | 3.6 GB |
+
+The main pass took 229 s that day against 153 s two days earlier on the same file and machine;
+these timings swing between runs. Repair runs on every transcription; the project file records
+how many words it added (`recovered`). Unit tests cover the gap finding and merging with a fake
+model (`tests/test_transcribe.py`).
 
 ### Editing the whole episode
 
@@ -171,9 +196,11 @@ bring back more than 0.1 s of a deleted word. Both cases are unit tests.
 
 - **One real recording so far**, professionally produced, three speakers. No hand-labelled ground
   truth, so filler *recall* is unknown; only counts and "has sound under it" are measured.
-- **Filler detection is fragile.** The same file always gives the same transcript (and it is
-  saved, so the editor never changes under you), but audio that differs inaudibly can give a
-  different set of fillers. Filler removal can only cut what the transcript contains.
+- **Filler detection is fragile.** The same file gives the same or nearly the same transcript
+  (and it is saved, so the editor never changes under you), but audio that differs inaudibly can
+  give a different set of fillers. Filler removal can only cut what the transcript contains.
+- **Skipped speech is recovered, not prevented.** The repair pass only finds speech the voice
+  detector hears; speech it misses, or that Whisper skips again on the second try, stays out.
 - **Cuts still hurt about 1 in 11 neighbouring words** on the real excerpt (3 of 34), and can
   leave short filler fragments.
 - **Pause detection is relative to the loudest parts of the file.** Noisy rooms will need a
@@ -183,7 +210,7 @@ bring back more than 0.1 s of a deleted word. Both cases are unit tests.
   leak into the preview. Export is unaffected.
 - **Audio only.** Video is M4.
 - **Tested at one hour, not beyond.** A two-hour episode, or thousands of cuts, hasn't been tried.
-  Transcription memory peaked at 3.1 GB for one hour.
+  Transcription memory peaked at 3.6 GB for one hour.
 
 ## Contributing
 
